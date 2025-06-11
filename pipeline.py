@@ -944,29 +944,63 @@ def _plot_debug_results(paths: WorkflowPaths, args) -> None:
 
 def AugmentA(args):
     try:
+        # --- STAGE: SETUP (Always runs) ---
         print("\n--- Initializing Pipeline ---")
         paths, generator = _setup(args)
         paths.log_current_stage()
+
+        # Define the pipeline stages in their execution order
+        pipeline_stages = ['prepare_surface', 'main_workflow', 'plot']
 
         print("\n--- Preparing Surface ---")
         apex_id = _prepare_surface(paths=paths, generator=generator, args=args)
         paths.log_current_stage()
 
-        if args.SSM_fitting and not args.closed_surface:
-            print("\n--- Running SSM Fitting ---")
-            _run_ssm_fitting(paths=paths, generator=generator, args=args, apex_id_for_resampling=apex_id)
-            paths.log_current_stage()
-        elif not args.SSM_fitting:
-            print("\n--- Running Fiber Generation ---")
-            _run_fiber_generation(paths, generator, args, n_cpu)
+        # Determine which stages to run based on flags
+        if args.start_at_stage in pipeline_stages:
+            start_index = pipeline_stages.index(args.start_at_stage)
+        else:
+            start_index = 0
+
+        if args.stop_after_stage in pipeline_stages:
+            stop_index = pipeline_stages.index(args.stop_after_stage)
+        else:
+            stop_index = len(pipeline_stages) - 1
+
+        # Create a set of stages to execute for efficient checking
+        stages_to_run = set(pipeline_stages[start_index: stop_index + 1])
+
+        print(f"Pipeline will run stages: {list(stages_to_run)}")
+
+        # --- STAGE: PREPARE SURFACE ---
+        apex_id = -1
+        if 'prepare_surface' in stages_to_run:
+            print("\n--- Preparing Surface ---")
+            apex_id = _prepare_surface(paths=paths, generator=generator, args=args)
             paths.log_current_stage()
 
-        if args.debug:
-            print("\n--- Plotting Debug Results ---")
-            _plot_debug_results(paths, args)
+        # --- STAGE: MAIN WORKFLOW (SSM or FIBERS) ---
+        if 'main_workflow' in stages_to_run:
+            # The 'main_workflow' stage name is a placeholder for either SSM or Fiber Generation
+            # We map it to the correct stage name based on the --SSM_fitting flag
+            actual_main_stage = 'ssm_fitting' if args.SSM_fitting and not args.closed_surface else 'fiber_generation'
+
+            if actual_main_stage == 'ssm_fitting':
+                _run_ssm_fitting(paths, generator, args, apex_id, n_cpu)
+                paths.log_current_stage()
+            elif actual_main_stage == 'fiber_generation':
+                _run_fiber_generation(paths, generator, args, n_cpu)
+                paths.log_current_stage()
+
+            # --- STAGE: PLOT ---
+        if 'plot' in stages_to_run:
+            if args.debug:
+                print("\n--- Plotting Debug Results ---")
+                _plot_debug_results(paths, args)
 
         print("\n--- Pipeline Finished ---")
-
     except Exception as e:
         print(f"\nFATAL ERROR: Pipeline failed — {e}", file=sys.stderr)
         sys.exit(1)
+
+    

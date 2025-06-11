@@ -112,6 +112,21 @@ def parser():
                         default=None,
                         help='Path to a CSV file specifying apex IDs to bypass interactive picking. '
                              'Format: a header row "atrium,id" followed by rows like "LAA,123".')
+
+    # Define the valid stages of your pipeline
+    pipeline_stages = ['prepare_surface', 'ssm_fitting', 'fiber_generation', 'plot']
+
+    parser.add_argument('--start-at-stage',
+                        type=str,
+                        choices=pipeline_stages,
+                        default=pipeline_stages[0],
+                        help='The stage at which to start the pipeline.')
+
+    parser.add_argument('--stop-after-stage',
+                        type=str,
+                        choices=pipeline_stages,
+                        default=pipeline_stages[-1],
+                        help='The stage after which to stop the pipeline.')
     return parser
 
 
